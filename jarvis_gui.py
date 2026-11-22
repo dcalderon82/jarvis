@@ -17,8 +17,8 @@ import os
 # -----------------------------
 # YOUR IDENTITY (edit this!)
 # -----------------------------
-DEVELOPER_NAME = "Afin"          # <-- change this to your actual name
-DEFAULT_CITY = "Kochi"           # <-- change this to your city
+DEVELOPER_NAME = "Diego"        # <-- change this to your actual name
+DEFAULT_CITY = "General Deheza"  # <-- change this to your city
 
 # -----------------------------
 # FIND WORKING MIC (WASAPI + native sample rate)
