@@ -1,0 +1,31 @@
+# Configuración de Render (Blueprint) para Jarvis web. Guía paso a paso: DESPLIEGUE.md
+#
+# Empieza en el plan GRATIS, para probar: se duerme tras 15 minutos sin uso (tarda cerca de un minuto en
+# despertar) y no tiene disco, así que notas, memoria y recordatorios se pierden cuando se duerme o se reinicia.
+# Para usarlo en serio: pasar a un plan de pago y agregarle un disco montado en /data (ver DESPLIEGUE.md).
+#
+# Los valores secretos NO se escriben acá: Render los pide en su panel al crear el servicio.
+services:
+  - type: web
+    name: jarvis
+    runtime: docker
+    plan: free
+    region: virginia            # la más cercana a Argentina entre las que ofrece Render; no se puede cambiar después
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit   # cada cambio que se mergea a la rama conectada se despliega solo
+    envVars:
+      # --- secretos: los completás vos en el panel de Render ---
+      - key: JARVIS_PASSWORD    # tu contraseña de entrada (mínimo 10 caracteres)
+        sync: false
+      - key: ANTHROPIC_API_KEY  # tu clave de la API de Claude
+        sync: false
+      - key: JARVIS_PROFILE     # tu perfil en JSON (lo imprime generar_claves.py)
+        sync: false
+      # --- se genera sola al crear el servicio y se conserva en los siguientes despliegues ---
+      - key: JARVIS_SECRET
+        generateValue: true
+      # --- valores fijos ---
+      - key: JARVIS_COOKIE_SECURE
+        value: "1"
+      - key: JARVIS_DAILY_LIMIT # tope de mensajes por día, para cuidar el gasto
+        value: "300"

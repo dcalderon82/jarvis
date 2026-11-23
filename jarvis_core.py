@@ -23,14 +23,33 @@ from urllib.parse import quote_plus
 # PERFIL (se lee de perfil.json; copiá perfil.ejemplo.json y completalo)
 # -----------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Dónde se guardan los datos que cambian (notas, memoria, recordatorios) y, si existe, el perfil.
+# En tu PC es la carpeta del programa; en un servidor se apunta a un disco persistente (JARVIS_DATA_DIR).
+DATA_DIR = os.environ.get("JARVIS_DATA_DIR") or BASE_DIR
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except OSError:
+    pass
 
 def load_profile():
-    for filename in ("perfil.json", "perfil.ejemplo.json"):
+    """Fuentes, en orden: la variable JARVIS_PROFILE (un JSON; es lo que se usa en un hosting, donde
+    perfil.json no existe), perfil.json en DATA_DIR o junto al programa, y por último la plantilla."""
+    raw = os.environ.get("JARVIS_PROFILE")
+    if raw:
         try:
-            with open(os.path.join(BASE_DIR, filename), encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, ValueError):
-            continue
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                return data
+        except ValueError:
+            pass
+        print("Aviso: JARVIS_PROFILE no es un JSON válido (un objeto con comillas dobles); se ignora.")
+    for folder in dict.fromkeys((DATA_DIR, BASE_DIR)):
+        for filename in ("perfil.json", "perfil.ejemplo.json"):
+            try:
+                with open(os.path.join(folder, filename), encoding="utf-8") as f:
+                    return json.load(f)
+            except (OSError, ValueError):
+                continue
     return {}
 
 PROFILE = load_profile()
@@ -76,7 +95,7 @@ LLM_ERROR_MESSAGE = "Perdón, no puedo conectarme a Ollama. Asegurate de que est
 #   - hechos: cosas que le pedís que recuerde ("acordate que me gusta el mate")
 #   - historial: los últimos mensajes de la charla, para retomar al volver a abrir
 # -----------------------------
-MEMORY_FILE = os.path.join(BASE_DIR, "memoria.json")
+MEMORY_FILE = os.path.join(DATA_DIR, "memoria.json")
 MEMORY_LOCK = threading.Lock()
 MAX_FACTS = 30
 MAX_HISTORY_MESSAGES = 20
@@ -324,7 +343,7 @@ def open_website(site):
 # -----------------------------
 # SKILL: NOTAS (se guardan en notas.json, que no se sube a git)
 # -----------------------------
-NOTES_FILE = os.path.join(BASE_DIR, "notas.json")
+NOTES_FILE = os.path.join(DATA_DIR, "notas.json")
 NOTE_RE = re.compile(r"\b(?:anot[aá]me|anot[aá]|agreg[aá] una nota|tom[aá] nota)\b(?: de| que)?\s+(.+)$")
 
 def load_notes():
@@ -396,7 +415,7 @@ UNIT_SECONDS = {"segundo": 1, "minuto": 60, "hora": 3600}
 TIME_RE = re.compile(r"\ben (\d+|" + "|".join(NUMBER_WORDS) + r") (segundos?|minutos?|horas?)\b")
 REMIND_RE = re.compile(r"\b(?:record(?:[aá]|ar)me|acord(?:[aá]|ar)me|avis(?:[aá]|ar)me)\b")
 REMINDERS = []
-REMINDERS_FILE = os.path.join(BASE_DIR, "recordatorios.json")
+REMINDERS_FILE = os.path.join(DATA_DIR, "recordatorios.json")
 REMINDERS_LOCK = threading.Lock()
 
 def save_reminders():

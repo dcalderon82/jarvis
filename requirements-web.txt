@@ -4,3 +4,5 @@ flask>=3.1,<4
 requests>=2.31
 pyjokes>=0.6
 anthropic>=2,<3
+# Servidor de producción (el Dockerfile lo usa; en tu PC alcanza con `python jarvis_web.py`).
+waitress>=3,<4

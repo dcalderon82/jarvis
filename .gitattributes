@@ -1,0 +1,4 @@
+# Estos archivos tienen que usar saltos de línea de Linux (LF) aunque se descarguen en Windows:
+# con CRLF el contenedor falla con "sh\r: not found".
+*.sh text eol=lf
+Dockerfile text eol=lf
