@@ -150,7 +150,8 @@ Se incluyen scripts de prueba (`test_wasapi.py`, `test_all_devices.py`, `test_mi
 
 ```
 jarvis/
-├── jarvis_gui.py            # aplicación principal
+├── jarvis_core.py           # el "cerebro": perfil, memoria, notas, recordatorios y comandos (sin ventana ni micrófono)
+├── jarvis_gui.py            # app de escritorio: ventana, micrófono, voz y comandos de la PC
 ├── perfil.ejemplo.json      # plantilla del perfil (copiala a perfil.json)
 ├── perfil.json              # tus datos (no se sube a git)
 ├── notas.json               # tus notas (se crea solo, no se sube a git)
