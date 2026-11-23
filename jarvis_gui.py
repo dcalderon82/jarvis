@@ -589,17 +589,23 @@ handsfree_thread = None
 
 def wait_for_command(source):
     """Después de decir solo 'Jarvis': contesta '¿Sí?' y espera el pedido.
-    Si repite 'Jarvis' sin pedido, sigue esperando (hasta 3 intentos)."""
+    Si repite 'Jarvis' sin pedido, sigue esperando. Si no entiende, pide que lo repitas
+    (hasta 3 intentos en total)."""
     add_message("Jarvis", "¿Sí?")
     speak("¿Sí?")
     flush_mic(source)
-    for _ in range(3):
+    for attempt in range(3):
         try:
             audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
         except sr.WaitTimeoutError:
             return None
         heard = transcribe(audio)
         if not heard:
+            if attempt < 2:
+                add_message("Jarvis", "No te entendí, repetilo.")
+                speak("No te entendí, repetilo.")
+                flush_mic(source)
+                continue
             add_message("Sistema", "No te entendí nada, boludo. Probá de nuevo.")
             return None
         after_wake = extract_wake_command(heard)
