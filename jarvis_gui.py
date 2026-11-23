@@ -15,6 +15,8 @@ import pyjokes
 import os
 import json
 import re
+import ctypes
+from urllib.parse import quote_plus
 
 # -----------------------------
 # PERFIL (se lee de perfil.json; copiá perfil.ejemplo.json y completalo)
@@ -596,6 +598,115 @@ def list_reminders():
     return f"Tenés {cuenta}. " + ". ".join(items) + "."
 
 # -----------------------------
+# SKILL: CONTROL DE LA COMPU (volumen, música, búsquedas, carpetas, bloqueo)
+# No apaga ni reinicia la compu a propósito: un "apagá" mal transcrito haría perder trabajo.
+# -----------------------------
+VOLUME_STEP_PRESSES = 5  # cada pulsación mueve ~2%: 5 pulsaciones ≈ 10%
+VOLUME_SET_RE = re.compile(r"\b(?:en|al|a)\s+(\d{1,3})\b")
+SEARCH_RE = re.compile(
+    r"\b(?:busc[aá]me|busc[aá]|googlea|googleá|googlear)\b(?:\s+en\s+(google|youtube))?\s*(?:de\s+|sobre\s+)?(.+)$"
+)
+MUSIC_WORDS = {"música", "musica", "canción", "cancion", "reproducción", "reproduccion"}
+FOLDERS = {
+    "descargas": "Downloads", "documentos": "Documents", "escritorio": "Desktop",
+    "imágenes": "Pictures", "imagenes": "Pictures", "fotos": "Pictures",
+    "música": "Music", "musica": "Music", "videos": "Videos", "vídeos": "Videos",
+}
+
+def words_of(command):
+    return set(re.findall(r"\w+", command))
+
+def press_key(key, times=1):
+    if times <= 0:
+        return True
+    try:
+        pyautogui.press(key, presses=times, interval=0.01)
+        return True
+    except Exception:
+        return False
+
+def set_volume(level):
+    """Baja todo al mínimo y sube hasta el nivel pedido (cada pulsación ≈ 2%)."""
+    return press_key("volumedown", 50) and press_key("volumeup", round(level / 2))
+
+def control_volume(command):
+    fallo = "Perdón, no pude tocar el volumen."
+    if has_any(command, ("silenciá", "silencia", "silenciar", "mutea", "mutear", "mute")):
+        return "Listo, alterné el silencio." if press_key("volumemute") else fallo
+
+    match = VOLUME_SET_RE.search(command)
+    if match:
+        level = max(0, min(100, int(match.group(1))))
+        return f"Listo, volumen al {level} por ciento, más o menos." if set_volume(level) else fallo
+    if has_any(command, ("máximo", "maximo")):
+        return "Listo, volumen al máximo." if set_volume(100) else fallo
+    if has_any(command, ("mínimo", "minimo")):
+        return "Listo, volumen al mínimo." if set_volume(0) else fallo
+
+    words = words_of(command)
+    if words & {"subí", "subi", "subir", "subile", "sube", "más", "aumentá", "aumenta"}:
+        return "Listo, subí el volumen." if press_key("volumeup", VOLUME_STEP_PRESSES) else fallo
+    if words & {"bajá", "baja", "bajar", "bajale", "menos", "disminuí", "disminui"}:
+        return "Listo, bajé el volumen." if press_key("volumedown", VOLUME_STEP_PRESSES) else fallo
+    return "¿Querés que suba o baje el volumen?"
+
+def music_action(command):
+    """Devuelve la tecla multimedia que corresponde, o None si no es un pedido de música."""
+    words = words_of(command)
+    if has_any(command, ("poné play", "pone play", "dale play", "poné pausa", "pone pausa")):
+        return "playpause"
+    if not (words & MUSIC_WORDS):
+        return None
+    if words & {"siguiente", "próxima", "proxima", "cambiá", "cambia"}:
+        return "nexttrack"
+    if words & {"anterior", "volvé", "volve"}:
+        return "prevtrack"
+    if words & {"pausá", "pausa", "pará", "seguí", "continuá", "continua", "reanudá", "reproducí", "poné", "pone"}:
+        return "playpause"
+    return None
+
+def control_music(key):
+    if not press_key(key):
+        return "Perdón, no pude controlar la música."
+    return {
+        "playpause": "Listo, play o pausa.",
+        "nexttrack": "Listo, siguiente canción.",
+        "prevtrack": "Listo, canción anterior.",
+    }[key]
+
+def web_search(command):
+    match = SEARCH_RE.search(command)
+    site = match.group(1) or "google"
+    query = match.group(2).strip()
+    if site == "youtube":
+        webbrowser.open(f"https://www.youtube.com/results?search_query={quote_plus(query)}")
+        return f"Buscando {query} en YouTube."
+    webbrowser.open(f"https://www.google.com/search?q={quote_plus(query)}")
+    return f"Buscando {query} en Google."
+
+def folder_name(command):
+    for word in re.findall(r"\w+", command):
+        if word in FOLDERS:
+            return word
+    return None
+
+def open_folder(name):
+    home = os.path.expanduser("~")
+    for base in (home, os.path.join(home, "OneDrive")):
+        path = os.path.join(base, FOLDERS[name])
+        if os.path.isdir(path):
+            os.startfile(path)
+            return f"Abriendo {name}."
+    return f"No encontré la carpeta de {name}."
+
+def lock_screen():
+    try:
+        ctypes.windll.user32.LockWorkStation()
+        return "Listo, bloqueando la pantalla."
+    except Exception as e:
+        return f"Perdón, no pude bloquear la pantalla. Error: {e}"
+
+# -----------------------------
 # SKILLS ROUTER
 # -----------------------------
 OPEN_WORDS = ("abre", "abrí", "abri", "abrir", "abrime")
@@ -621,6 +732,30 @@ def handle_command(command):
     elif opening and has_any(command, ("vs code", "vscode", "visual studio code")):
         subprocess.Popen("code", shell=True)
         return "Abriendo VS Code."
+
+    elif opening and "calculadora" in command:
+        subprocess.Popen("calc")
+        return "Abriendo la calculadora."
+
+    elif opening and "explorador" in command:
+        subprocess.Popen("explorer")
+        return "Abriendo el explorador de archivos."
+
+    elif opening and folder_name(command) and not has_any(command, ("youtube", "github", "reddit", "gmail")):
+        return open_folder(folder_name(command))
+
+    elif has_any(command, ("bloqueá la pantalla", "bloquea la pantalla", "bloquear la pantalla",
+                           "bloqueá la compu", "bloquea la compu", "bloqueá la computadora", "bloquea la computadora")):
+        return lock_screen()
+
+    elif "volumen" in command or has_any(command, ("silenciá", "silencia el", "silenciar", "mutea", "mutear")):
+        return control_volume(command)
+
+    elif music_action(command):
+        return control_music(music_action(command))
+
+    elif SEARCH_RE.search(command) and "wikipedia" not in command:
+        return web_search(command)
 
     elif has_any(command, ("borrá la memoria", "borra la memoria", "borrá toda la memoria", "borra toda la memoria")):
         return forget_all()
