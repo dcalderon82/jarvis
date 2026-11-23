@@ -13,12 +13,28 @@ import pyautogui
 import psutil
 import pyjokes
 import os
+import json
 
 # -----------------------------
-# YOUR IDENTITY (edit this!)
+# PERFIL (se lee de perfil.json; copiá perfil.ejemplo.json y completalo)
 # -----------------------------
-DEVELOPER_NAME = "Diego"        # <-- change this to your actual name
-DEFAULT_CITY = "General Deheza"  # <-- change this to your city
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def load_profile():
+    for filename in ("perfil.json", "perfil.ejemplo.json"):
+        try:
+            with open(os.path.join(BASE_DIR, filename), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            continue
+    return {}
+
+PROFILE = load_profile()
+DEVELOPER_NAME = PROFILE.get("nombre", "Diego")
+NICKNAME = PROFILE.get("apodo", DEVELOPER_NAME)
+DEFAULT_CITY = PROFILE.get("ciudad", "General Deheza")
+INTERESTS = PROFILE.get("gustos", [])
+ABOUT_ME = PROFILE.get("sobre_mi", "")
 
 # -----------------------------
 # FIND WORKING MIC (WASAPI + native sample rate)
@@ -52,17 +68,25 @@ recognizer = sr.Recognizer()
 recognizer.pause_threshold = 1
 recognizer.energy_threshold = 200
 
-conversation = [
-    {
-        "role": "system",
-        "content": (
-            f"Sos Jarvis, un asistente de inteligencia artificial. "
-            f"Fuiste creado y sos mantenido por {DEVELOPER_NAME}, que es tu desarrollador. "
-            f"Tratá siempre a {DEVELOPER_NAME} con respeto como tu desarrollador. "
-            f"Respondé siempre en español, de forma útil, concisa, amable y conversacional."
-        ),
-    }
-]
+def build_system_prompt():
+    prompt = (
+        f"Sos Jarvis, el asistente personal de {NICKNAME} (se llama {DEVELOPER_NAME}), "
+        f"que además es tu creador y quien te mantiene. "
+        f"Hablás en español rioplatense, con voseo (vos tenés, vos podés, mirá, fijate). "
+        f"Sos totalmente informal, como un amigo argentino: relajado, con humor, un poco irónico y cero robótico. "
+        f"Podés usar expresiones y malas palabras suaves de la calle como 'boludo', 'che', 'dale', 'bárbaro', "
+        f"'al pedo' o 'una masa' cuando quede natural, sin pasarte ni insultar de verdad ni ofender a nadie. "
+        f"Nada de frases de robot como 'como asistente de IA' ni 'estoy aquí para ayudarte'. "
+        f"Respondé corto, en una o dos frases la mayoría de las veces, porque tus respuestas se leen en voz alta. "
+        f"No uses emojis, listas ni formato especial. Ayudá de verdad y no inventes datos: si no sabés algo, decilo."
+    )
+    if ABOUT_ME:
+        prompt += f" Sobre {NICKNAME}: {ABOUT_ME}"
+    if INTERESTS:
+        prompt += f" Le gustan: {', '.join(INTERESTS)}."
+    return prompt
+
+conversation = [{"role": "system", "content": build_system_prompt()}]
 
 # -----------------------------
 # TEXT TO SPEECH
@@ -302,10 +326,10 @@ def handle_command(command):
 
     elif has_any(command, ("quién soy", "quien soy", "sobre mí", "sobre mi", "quién es mi desarrollador", "quien es mi desarrollador", "quién es mi creador", "quien es mi creador")):
         return (
-            f"Vos sos {DEVELOPER_NAME}, mi creador y desarrollador. "
-            f"Me construiste desde cero, arreglaste los drivers de mi micrófono, "
-            f"y me enseñaste a escuchar, hablar y ayudarte con tareas reales. "
-            f"Existo gracias a tu trabajo."
+            f"Vos sos {DEVELOPER_NAME}, mi creador, che. "
+            f"Me armaste de cero, te peleaste con los drivers del micrófono, "
+            f"y me enseñaste a escuchar, hablar y ayudarte con cosas reales. "
+            f"Sin vos yo sería un archivo al pedo."
         )
 
     elif "wikipedia" in command or has_any(command, ("quién es", "quien es", "quién fue", "quien fue", "qué es", "que es")):
@@ -392,7 +416,7 @@ def on_mic():
         add_message("Sistema", "Escuchando...")
         heard = listen()
         if heard is None:
-            add_message("Sistema", "No te escuché bien.")
+            add_message("Sistema", "No te entendí nada, boludo. Probá de nuevo.")
             return
         process_and_reply(heard)
 
@@ -411,7 +435,8 @@ send_button.pack(side="left", padx=(0, 10))
 mic_button = ctk.CTkButton(bottom_frame, text="🎤 Hablar", width=90, command=on_mic)
 mic_button.pack(side="left")
 
-add_message("Jarvis", f"En línea. Hola {DEVELOPER_NAME}, ¿en qué puedo ayudarte?")
-threading.Thread(target=speak, args=(f"Jarvis en línea. Hola {DEVELOPER_NAME}, ¿en qué puedo ayudarte?",), daemon=True).start()
+GREETING = f"Ey {NICKNAME}, acá estoy. ¿Qué hacemos hoy?"
+add_message("Jarvis", GREETING)
+threading.Thread(target=speak, args=(GREETING,), daemon=True).start()
 
 app.mainloop()

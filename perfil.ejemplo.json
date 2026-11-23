@@ -1,0 +1,7 @@
+{
+  "nombre": "Tu nombre",
+  "apodo": "Como querés que te diga Jarvis",
+  "ciudad": "Tu ciudad",
+  "gustos": ["algo que te guste", "otra cosa que te guste"],
+  "sobre_mi": "Una o dos frases sobre vos que Jarvis tenga que saber."
+}
