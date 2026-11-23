@@ -369,7 +369,7 @@ def clear_notes():
         return f"Perdón, no pude borrar las notas. Error: {e}"
 
 # -----------------------------
-# SKILL: RECORDATORIOS (viven mientras Jarvis esté abierto)
+# SKILL: RECORDATORIOS (se guardan en recordatorios.json y sobreviven al cierre)
 # -----------------------------
 NUMBER_WORDS = {
     "un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6,
@@ -380,10 +380,74 @@ UNIT_SECONDS = {"segundo": 1, "minuto": 60, "hora": 3600}
 TIME_RE = re.compile(r"\ben (\d+|" + "|".join(NUMBER_WORDS) + r") (segundos?|minutos?|horas?)\b")
 REMIND_RE = re.compile(r"\b(?:record(?:[aá]|ar)me|acord(?:[aá]|ar)me|avis(?:[aá]|ar)me)\b")
 REMINDERS = []
+REMINDERS_FILE = os.path.join(BASE_DIR, "recordatorios.json")
+REMINDERS_LOCK = threading.Lock()
+
+def save_reminders():
+    """Guarda los pendientes en disco. Llamar con REMINDERS_LOCK tomado."""
+    data = [{"texto": r["texto"], "due": r["due"].isoformat()} for r in REMINDERS]
+    try:
+        with open(REMINDERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
+def describe_due(due):
+    now = datetime.datetime.now()
+    hora = due.strftime("%H:%M")
+    if due.date() == now.date():
+        return f"a las {hora}"
+    if due.date() == (now + datetime.timedelta(days=1)).date():
+        return f"mañana a las {hora}"
+    return f"el {due.day} de {MESES[due.month - 1]} a las {hora}"
+
+def start_reminder(entry):
+    """Programa el aviso de un recordatorio (entry tiene 'texto' y 'due')."""
+    seconds = max(0, (entry["due"] - datetime.datetime.now()).total_seconds())
+    timer = threading.Timer(seconds, fire_reminder, args=(entry,))
+    timer.daemon = True
+    entry["timer"] = timer
+    timer.start()
+
+def restore_reminders():
+    """Al abrir Jarvis: reprograma los recordatorios guardados y devuelve los que
+    vencieron mientras estaba cerrado, como lista de (fecha, texto)."""
+    try:
+        with open(REMINDERS_FILE, encoding="utf-8") as f:
+            saved = json.load(f)
+        if not isinstance(saved, list):
+            raise ValueError("formato inesperado")
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError):
+        # El archivo existe pero está roto: lo aparto para no pisarlo.
+        try:
+            os.replace(REMINDERS_FILE, REMINDERS_FILE + ".corrupto")
+        except OSError:
+            pass
+        return []
+
+    now = datetime.datetime.now()
+    expired, pending = [], []
+    for item in saved:
+        try:
+            entry = {"texto": str(item["texto"]), "due": datetime.datetime.fromisoformat(item["due"])}
+        except (KeyError, TypeError, ValueError):
+            continue
+        (expired if entry["due"] <= now else pending).append(entry)
+
+    with REMINDERS_LOCK:
+        REMINDERS.extend(pending)
+        save_reminders()
+    for entry in pending:
+        start_reminder(entry)
+    return [(e["due"], e["texto"]) for e in expired]
 
 def fire_reminder(entry):
-    if entry in REMINDERS:
-        REMINDERS.remove(entry)
+    with REMINDERS_LOCK:
+        if entry in REMINDERS:
+            REMINDERS.remove(entry)
+            save_reminders()
     msg = f"Ey {NICKNAME}, te acuerdo: {entry['texto']}."
     add_message("Jarvis", msg)
     speak(msg)
@@ -403,18 +467,18 @@ def set_reminder(command):
     text = re.sub(r"^\s*(?:de|que|para)\s+", "", rest.strip()).strip() or "lo que me pediste"
 
     due = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
-    entry = {"texto": text, "hora": due.strftime("%H:%M")}
-    timer = threading.Timer(seconds, fire_reminder, args=(entry,))
-    timer.daemon = True
-    entry["timer"] = timer
-    REMINDERS.append(entry)
-    timer.start()
+    entry = {"texto": text, "due": due}
+    with REMINDERS_LOCK:
+        REMINDERS.append(entry)
+        save_reminders()
+    start_reminder(entry)
     return f"Dale, en {when.group(1)} {when.group(2)} te acuerdo: {text}."
 
 def list_reminders():
     if not REMINDERS:
         return "No tenés recordatorios pendientes."
-    items = [f"a las {r['hora']}: {r['texto']}" for r in REMINDERS]
+    pendientes = sorted(REMINDERS, key=lambda r: r["due"])
+    items = [f"{describe_due(r['due'])}: {r['texto']}" for r in pendientes]
     if len(REMINDERS) == 1:
         cuenta = "1 recordatorio pendiente"
     else:
@@ -680,6 +744,20 @@ HANDSFREE_OFF_COLOR = handsfree_button.cget("fg_color")
 
 GREETING = f"Ey {NICKNAME}, acá estoy. ¿Qué hacemos hoy?"
 add_message("Jarvis", GREETING)
-threading.Thread(target=speak, args=(GREETING,), daemon=True).start()
+
+# Recordatorios guardados: se reprograman, y se avisa de los que vencieron con Jarvis cerrado.
+EXPIRED_MESSAGES = [
+    f"Ey {NICKNAME}, mientras yo estaba cerrado se te pasó un recordatorio, {describe_due(due)}: {texto}."
+    for due, texto in restore_reminders()
+]
+for message in EXPIRED_MESSAGES:
+    add_message("Jarvis", message)
+
+def startup_speech():
+    speak(GREETING)
+    for message in EXPIRED_MESSAGES:
+        speak(message)
+
+threading.Thread(target=startup_speech, daemon=True).start()
 
 app.mainloop()

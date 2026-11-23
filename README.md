@@ -17,7 +17,7 @@ Jarvis entiende comandos escritos y hablados:
 - 🎙️ **Escucha y responde por voz**, en español
 - 👂 **Modo manos libres**: un botón lo deja escuchando y se activa cuando decís "Jarvis" (ver la nota de privacidad más abajo)
 - 📝 **Notas por voz**: "anotá comprar pan", "qué tengo anotado", "borrá la última nota"
-- ⏰ **Recordatorios**: "recordame en 10 minutos llamar a mamá", "qué recordatorios tengo"
+- ⏰ **Recordatorios**: "recordame en 10 minutos llamar a mamá", "qué recordatorios tengo". Se guardan en disco: si cerrás Jarvis, al abrirlo se reprograman, y los que vencieron mientras estaba cerrado te los avisa al arrancar
 - 🌦️ **Clima** de cualquier ciudad (Open-Meteo, sin clave)
 - 📰 **Noticias** (BBC Mundo, por RSS)
 - 📖 **Preguntas "quién es / qué es"** con resúmenes de Wikipedia en español
@@ -147,6 +147,7 @@ jarvis/
 ├── perfil.ejemplo.json      # plantilla del perfil (copiala a perfil.json)
 ├── perfil.json              # tus datos (no se sube a git)
 ├── notas.json               # tus notas (se crea solo, no se sube a git)
+├── recordatorios.json       # recordatorios pendientes (se crea solo, no se sube a git)
 ├── test_wasapi.py           # diagnóstico de WASAPI
 ├── test_all_devices.py      # recorre todos los dispositivos de entrada
 ├── test_mic.py              # prueba básica de micrófono y reconocimiento
@@ -160,7 +161,6 @@ jarvis/
 
 ## 🔭 Ideas a futuro
 
-- [ ] Recordatorios que sobrevivan al cierre de Jarvis
 - [ ] Memoria de conversaciones entre sesiones
 - [ ] Controlar la compu: volumen, música, buscar en Google
 - [ ] Empaquetar como `.exe` para distribuirlo más fácil
