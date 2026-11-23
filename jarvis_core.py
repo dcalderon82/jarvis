@@ -628,7 +628,7 @@ def handle_command(command):
 # CORE: process a message (typed or spoken), return reply text
 # -----------------------------
 def get_reply(user_input):
-    skill_reply = handle_command(user_input)
+    skill_reply = handle_command(user_input.lower())  # los comandos se buscan en minúsculas; el modelo ve el texto original
     if skill_reply:
         return skill_reply
 
