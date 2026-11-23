@@ -355,7 +355,7 @@ NUMBER_WORDS = {
 }
 UNIT_SECONDS = {"segundo": 1, "minuto": 60, "hora": 3600}
 TIME_RE = re.compile(r"\ben (\d+|" + "|".join(NUMBER_WORDS) + r") (segundos?|minutos?|horas?)\b")
-REMIND_RE = re.compile(r"\b(?:record[aá]me|acord[aá]me|avis[aá]me)\b")
+REMIND_RE = re.compile(r"\b(?:record(?:[aá]|ar)me|acord(?:[aá]|ar)me|avis(?:[aá]|ar)me)\b")
 REMINDERS = []
 
 def fire_reminder(entry):
