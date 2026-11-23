@@ -7,7 +7,9 @@ Configuración por variables de entorno (nada de esto se guarda en el repositori
   JARVIS_COOKIE_SECURE  "1" (por defecto) exige HTTPS para la cookie; usar "0" solo para probar en http://localhost
   JARVIS_TRUST_PROXY    "1" si está detrás de un proxy de hosting (usa la IP real en el límite de intentos)
   JARVIS_TZ             zona horaria del servidor (por defecto America/Argentina/Buenos_Aires)
-  JARVIS_DAILY_LIMIT    tope de mensajes por día (por defecto 300), para no gastar de más cuando haya una API paga
+  JARVIS_DAILY_LIMIT    tope de mensajes por día (por defecto 300), para no gastar de más con la API paga
+  ANTHROPIC_API_KEY     clave de la API de Claude: con ella Jarvis piensa con Claude (ver jarvis_claude.py)
+  JARVIS_BRAIN          "claude" u "ollama" (por defecto: claude si hay clave; si no, ollama, solo para pruebas en tu PC)
 
 Para probarlo en tu PC:
   set JARVIS_PASSWORD=una-clave-larga-y-unica
@@ -88,6 +90,21 @@ class UsageLimiter:
             return None
 
 
+def choose_brain():
+    """Enchufa el modelo de lenguaje. Devuelve un texto que dice cuál quedó, para mostrarlo al arrancar."""
+    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    brain = (os.environ.get("JARVIS_BRAIN") or ("claude" if has_key else "ollama")).lower()
+    if brain == "claude":
+        if not has_key:
+            raise SystemExit("JARVIS_BRAIN=claude necesita la variable ANTHROPIC_API_KEY con tu clave de la API.")
+        import jarvis_claude  # recién acá: la versión de escritorio y las pruebas no lo necesitan
+        core.LLM_CHAT = jarvis_claude.make_chat()
+        return f"Claude ({core.LLM_CHAT.model})"
+    if brain == "ollama":
+        return "Ollama local (solo para pruebas en tu PC; online hace falta ANTHROPIC_API_KEY)"
+    raise SystemExit("JARVIS_BRAIN debe ser 'claude' u 'ollama'.")
+
+
 def create_app(password=None, secret=None, cookie_secure=None, daily_limit=None, restore=True):
     password = password if password is not None else os.environ.get("JARVIS_PASSWORD", "")
     if len(password) < MIN_PASSWORD_LENGTH:
@@ -114,6 +131,7 @@ def create_app(password=None, secret=None, cookie_secure=None, daily_limit=None,
         from werkzeug.middleware.proxy_fix import ProxyFix
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+    app.config["BRAIN"] = choose_brain()
     login_limiter = LoginLimiter()
     usage = UsageLimiter(per_minute=20, per_day=daily_limit)
     chat_lock = threading.Lock()
@@ -260,7 +278,10 @@ def create_app(password=None, secret=None, cookie_secure=None, daily_limit=None,
 
 
 if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     application = create_app()
+    print(f"Cerebro: {application.config['BRAIN']}")
     port = int(os.environ.get("PORT", "8000"))
     # En la PC se escucha solo en localhost; en un hosting lo maneja el servidor de producción (gunicorn).
     application.run(host=os.environ.get("JARVIS_HOST", "127.0.0.1"), port=port, threaded=True)

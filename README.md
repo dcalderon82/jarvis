@@ -156,6 +156,29 @@ python jarvis_web.py                                # http://127.0.0.1:8000
 | `JARVIS_TRUST_PROXY` | `1` si está detrás del proxy de un hosting |
 | `JARVIS_TZ` | Zona horaria (por defecto `America/Argentina/Buenos_Aires`) |
 | `JARVIS_DAILY_LIMIT` | Tope de mensajes por día (por defecto 300) |
+| `ANTHROPIC_API_KEY` | Tu clave de la API de Claude: con ella Jarvis piensa con Claude (ver más abajo) |
+| `JARVIS_BRAIN` | `claude` u `ollama`. Por defecto, `claude` si hay clave; si no, `ollama` (solo para probar en tu PC) |
+| `JARVIS_CLAUDE_MODEL` | Modelo de Claude (por defecto `claude-sonnet-5-5`) |
+| `JARVIS_CLAUDE_EFFORT` | Cuánto razona antes de contestar: `low` (por defecto, es un chat), `medium` o `high` |
+| `JARVIS_CLAUDE_MAX_TOKENS` | Tope de tokens por respuesta (por defecto 3000) |
+| `JARVIS_CLAUDE_FALLBACKS` | `1` (por defecto) activa el respaldo automático si un modelo se niega a responder; `0` lo apaga |
+
+### 🧠 El cerebro online: la API de Claude
+
+Online no hay Ollama: Jarvis piensa con la API de Claude, usando el SDK oficial (`anthropic`). Es de **pago por uso**, así que conviene cuidar el gasto:
+
+1. Creá una cuenta en la consola de Anthropic y generá una **clave de la API**. La clave es como una contraseña: no la pegues en el código, en el chat ni en el repositorio. Va solo en la variable de entorno `ANTHROPIC_API_KEY`.
+2. En la consola, **fijá un tope de gasto mensual**. Es tu red de seguridad principal; el tope de 300 mensajes por día de Jarvis es la segunda.
+3. Probá la clave con un solo pedido chiquito (cuesta una fracción de centavo):
+
+```powershell
+$env:ANTHROPIC_API_KEY = "tu-clave"     # solo vale para esta ventana de PowerShell
+python probar_claude.py
+```
+
+Los modelos se eligen por costo y capacidad: Sonnet 5.5 (por defecto) es un buen equilibrio para un chat; Opus 5.5 es el más capaz y el más caro; Haiku 5.5 es el más barato. Los mensajes viajan a Anthropic para que el modelo responda, junto con tu perfil y los datos que le pediste recordar.
+
+**Privacidad:** en los registros del servidor solo quedan el modelo, los tokens y el id del pedido, nunca tu clave ni tus mensajes. Eso vale mientras no actives `ANTHROPIC_LOG=debug`: el SDK, en ese modo, registra el contenido de los pedidos. No lo uses en producción.
 
 **Seguridad:** entra solo con contraseña; 5 intentos fallidos bloquean esa IP por 15 minutos; la sesión es una cookie `HttpOnly`; los pedidos exigen JSON, una cabecera propia y el mismo origen; hay topes de 20 mensajes por minuto y 300 por día; y solo se sirven los 4 archivos de la página (nunca tus notas, tu memoria ni tu perfil).
 
@@ -184,6 +207,8 @@ jarvis/
 ├── jarvis_core.py           # el "cerebro": perfil, memoria, notas, recordatorios y comandos (sin ventana ni micrófono)
 ├── jarvis_gui.py            # app de escritorio: ventana, micrófono, voz y comandos de la PC
 ├── jarvis_web.py            # servidor web para usar Jarvis desde el celular
+├── jarvis_claude.py         # conecta el cerebro con la API de Claude (versión online)
+├── probar_claude.py         # prueba tu clave de la API con un pedido chiquito
 ├── web/                     # la página de chat (index.html, app.js, style.css)
 ├── requirements-web.txt     # dependencias de la versión web
 ├── perfil.ejemplo.json      # plantilla del perfil (copiala a perfil.json)
