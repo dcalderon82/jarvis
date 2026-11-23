@@ -18,6 +18,7 @@ Jarvis entiende comandos escritos y hablados:
 - 👂 **Modo manos libres**: un botón lo deja escuchando y se activa cuando decís "Jarvis" (ver la nota de privacidad más abajo)
 - 📝 **Notas por voz**: "anotá comprar pan", "qué tengo anotado", "borrá la última nota"
 - ⏰ **Recordatorios**: "recordame en 10 minutos llamar a mamá", "qué recordatorios tengo". Se guardan en disco: si cerrás Jarvis, al abrirlo se reprograman, y los que vencieron mientras estaba cerrado te los avisa al arrancar
+- 🧠 **Memoria a largo plazo**: "acordate que mi perro se llama Toby" y se acuerda aunque cierres Jarvis. También retoma lo que venían charlando (los últimos mensajes). "Qué sabés de mí" lista lo que le pediste, "olvidate de que…" borra un dato y "borrá la memoria" borra todo
 - 🌦️ **Clima** de cualquier ciudad (Open-Meteo, sin clave)
 - 📰 **Noticias** (BBC Mundo, por RSS)
 - 📖 **Preguntas "quién es / qué es"** con resúmenes de Wikipedia en español
@@ -39,6 +40,8 @@ Jarvis entiende comandos escritos y hablados:
 | "Abrí YouTube" | Abre el sitio |
 | "Anotá llamar al dentista" | Guarda una nota |
 | "Recordame en 5 minutos sacar el pan" | Te avisa a los 5 minutos, en el chat y en voz |
+| "Acordate que me gusta el mate" | Lo guarda en su memoria para siempre |
+| "Qué sabés de mí" | Lista lo que le pediste que recuerde |
 | "Contame un chiste" | Un chiste de programadores |
 
 ---
@@ -148,6 +151,7 @@ jarvis/
 ├── perfil.json              # tus datos (no se sube a git)
 ├── notas.json               # tus notas (se crea solo, no se sube a git)
 ├── recordatorios.json       # recordatorios pendientes (se crea solo, no se sube a git)
+├── memoria.json             # memoria a largo plazo (se crea sola, no se sube a git)
 ├── test_wasapi.py           # diagnóstico de WASAPI
 ├── test_all_devices.py      # recorre todos los dispositivos de entrada
 ├── test_mic.py              # prueba básica de micrófono y reconocimiento
@@ -161,7 +165,6 @@ jarvis/
 
 ## 🔭 Ideas a futuro
 
-- [ ] Memoria de conversaciones entre sesiones
 - [ ] Controlar la compu: volumen, música, buscar en Google
 - [ ] Empaquetar como `.exe` para distribuirlo más fácil
 - [ ] Más habilidades (calendario, domótica)

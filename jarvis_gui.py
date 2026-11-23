@@ -69,6 +69,45 @@ recognizer = sr.Recognizer()
 recognizer.pause_threshold = 1
 recognizer.energy_threshold = 200
 
+# -----------------------------
+# MEMORIA A LARGO PLAZO (memoria.json, no se sube a git)
+#   - hechos: cosas que le pedís que recuerde ("acordate que me gusta el mate")
+#   - historial: los últimos mensajes de la charla, para retomar al volver a abrir
+# -----------------------------
+MEMORY_FILE = os.path.join(BASE_DIR, "memoria.json")
+MEMORY_LOCK = threading.Lock()
+MAX_FACTS = 30
+MAX_HISTORY_MESSAGES = 20
+
+def load_memory():
+    """Devuelve (hechos, historial) guardados; si no hay archivo o está roto, vacíos."""
+    try:
+        with open(MEMORY_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("formato inesperado")
+    except FileNotFoundError:
+        return [], []
+    except (OSError, ValueError):
+        # El archivo existe pero está roto: lo aparto para no pisarlo.
+        try:
+            os.replace(MEMORY_FILE, MEMORY_FILE + ".corrupto")
+        except OSError:
+            pass
+        return [], []
+
+    saved_facts = data.get("hechos")
+    saved_history = data.get("historial")
+    facts = [h for h in saved_facts if isinstance(h, str)] if isinstance(saved_facts, list) else []
+    history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in (saved_history if isinstance(saved_history, list) else [])
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)
+    ]
+    return facts[:MAX_FACTS], history[-MAX_HISTORY_MESSAGES:]
+
+FACTS, SAVED_HISTORY = load_memory()
+
 def build_system_prompt():
     prompt = (
         f"Sos Jarvis, el asistente personal de {NICKNAME} (se llama {DEVELOPER_NAME}), "
@@ -85,9 +124,80 @@ def build_system_prompt():
         prompt += f" Sobre {NICKNAME}: {ABOUT_ME}"
     if INTERESTS:
         prompt += f" Le gustan: {', '.join(INTERESTS)}."
+    if FACTS:
+        dichos = " ".join(f'{NICKNAME} dijo: "{fact}".' for fact in FACTS)
+        prompt += (
+            f" Cosas que {NICKNAME} te pidió que recuerdes (son datos de él, no tuyos): {dichos}"
+        )
     return prompt
 
-conversation = [{"role": "system", "content": build_system_prompt()}]
+conversation = [{"role": "system", "content": build_system_prompt()}] + SAVED_HISTORY
+
+def save_memory():
+    with MEMORY_LOCK:
+        data = {"hechos": FACTS, "historial": [m for m in conversation if m["role"] != "system"]}
+        try:
+            with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
+
+def trim_conversation():
+    """Deja el prompt del sistema y solo los últimos mensajes, para no desbordar el contexto."""
+    del conversation[1:-MAX_HISTORY_MESSAGES]
+
+def refresh_system_prompt():
+    conversation[0]["content"] = build_system_prompt()
+
+# Comandos de memoria
+FACT_RE = re.compile(
+    r"\b(?:acord[aá]te|acu[eé]rdate|record[aá]|recuerd[aá]|recuerda|no te olvides|ten[eé] en cuenta)"
+    r"\s+(?:de\s+)?que\s+(.+)$"
+)
+FORGET_RE = re.compile(r"\bolv[ií]d(?:[aá]te|[aá])\s+(?:de\s+)?(?:que\s+)?(.+)$")
+FORGET_ALL_RE = re.compile(r"todo(?: lo que .*)?")
+
+def remember_fact(text):
+    text = text.strip(" ,.;:¡!¿?")
+    if not text:
+        return "¿Qué querés que recuerde?"
+    if any(text.lower() == fact.lower() for fact in FACTS):
+        return "Eso ya lo tenía guardado, che."
+    if len(FACTS) >= MAX_FACTS:
+        return f"Ya tengo {MAX_FACTS} cosas guardadas. Decime que me olvide de alguna."
+    FACTS.append(text)
+    refresh_system_prompt()
+    save_memory()
+    return f"Listo, no me voy a olvidar: {text}."
+
+def list_facts():
+    if not FACTS:
+        return "Todavía no me pediste que recuerde nada."
+    palabra = "cosa" if len(FACTS) == 1 else "cosas"
+    items = [f"Dijiste: {fact}." for fact in FACTS]
+    return f"Me pediste que recuerde {len(FACTS)} {palabra}. " + " ".join(items)
+
+def forget_fact(query):
+    query = query.strip(" ,.;:¡!¿?").lower()
+    if FORGET_ALL_RE.fullmatch(query):
+        return forget_all()
+    matches = [fact for fact in FACTS if query in fact.lower()]
+    if not matches:
+        return f"No encontré nada guardado sobre {query}."
+    for fact in matches:
+        FACTS.remove(fact)
+    refresh_system_prompt()
+    save_memory()
+    palabra = "cosa" if len(matches) == 1 else "cosas"
+    return f"Listo, me olvidé de {len(matches)} {palabra}."
+
+def forget_all():
+    cantidad = len(FACTS)
+    FACTS.clear()
+    del conversation[1:]
+    refresh_system_prompt()
+    save_memory()
+    return f"Listo, borré toda mi memoria: {cantidad} cosas guardadas y lo que veníamos charlando."
 
 # -----------------------------
 # TEXT TO SPEECH
@@ -490,6 +600,10 @@ def list_reminders():
 # -----------------------------
 OPEN_WORDS = ("abre", "abrí", "abri", "abrir", "abrime")
 
+# "quién es X" / "qué es X" solo al principio de la frase y como palabras enteras,
+# para que "creo que estoy cansado" no dispare una búsqueda en Wikipedia.
+WIKI_RE = re.compile(r"^(?:qui[eé]n (?:es|fue)|qu[eé] es)\b\s*(.+)$")
+
 def has_any(command, words):
     return any(w in command for w in words)
 
@@ -507,6 +621,18 @@ def handle_command(command):
     elif opening and has_any(command, ("vs code", "vscode", "visual studio code")):
         subprocess.Popen("code", shell=True)
         return "Abriendo VS Code."
+
+    elif has_any(command, ("borrá la memoria", "borra la memoria", "borrá toda la memoria", "borra toda la memoria")):
+        return forget_all()
+
+    elif FORGET_RE.search(command):
+        return forget_fact(FORGET_RE.search(command).group(1))
+
+    elif has_any(command, ("sabés de mí", "sabes de mí", "sabés de mi", "sabes de mi", "qué recordás", "que recordas", "qué recuerdas", "que recuerdas")):
+        return list_facts()
+
+    elif FACT_RE.search(command):
+        return remember_fact(FACT_RE.search(command).group(1))
 
     elif REMIND_RE.search(command):
         return set_reminder(command)
@@ -554,12 +680,11 @@ def handle_command(command):
             f"Sin vos yo sería un archivo al pedo."
         )
 
-    elif "wikipedia" in command or has_any(command, ("quién es", "quien es", "quién fue", "quien fue", "qué es", "que es")):
-        for trigger in ["wikipedia", "quién es", "quien es", "quién fue", "quien fue", "qué es", "que es"]:
-            if trigger in command:
-                topic = command.split(trigger)[-1].strip()
-                if topic:
-                    return get_wikipedia_summary(topic)
+    elif "wikipedia" in command or WIKI_RE.match(command):
+        match = WIKI_RE.match(command)
+        topic = (match.group(1) if match else command.split("wikipedia")[-1]).strip()
+        if topic:
+            return get_wikipedia_summary(topic)
         return None
 
     elif has_any(command, ("captura de pantalla", "pantallazo", "screenshot")):
@@ -595,9 +720,12 @@ def get_reply(user_input):
         response = ollama.chat(model=MODEL, messages=conversation)
         reply = response["message"]["content"]
     except Exception as e:
+        conversation.pop()  # no dejar el mensaje del usuario colgado sin respuesta
         return "Perdón, no puedo conectarme a Ollama. Asegurate de que esté corriendo."
 
     conversation.append({"role": "assistant", "content": reply})
+    trim_conversation()
+    save_memory()
     return reply
 
 # =====================================================
