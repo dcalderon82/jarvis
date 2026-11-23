@@ -392,8 +392,11 @@ def list_reminders():
     if not REMINDERS:
         return "No tenés recordatorios pendientes."
     items = [f"a las {r['hora']}: {r['texto']}" for r in REMINDERS]
-    palabra = "recordatorio" if len(REMINDERS) == 1 else "recordatorios"
-    return f"Tenés {len(REMINDERS)} {palabra} pendientes. " + ". ".join(items) + "."
+    if len(REMINDERS) == 1:
+        cuenta = "1 recordatorio pendiente"
+    else:
+        cuenta = f"{len(REMINDERS)} recordatorios pendientes"
+    return f"Tenés {cuenta}. " + ". ".join(items) + "."
 
 # -----------------------------
 # SKILLS ROUTER
@@ -421,7 +424,7 @@ def handle_command(command):
     elif REMIND_RE.search(command):
         return set_reminder(command)
 
-    elif has_any(command, ("qué recordatorios", "que recordatorios", "mis recordatorios")):
+    elif "recordatorios" in command:
         return list_reminders()
 
     elif has_any(command, ("borrá todas las notas", "borra todas las notas", "borrar todas las notas", "borrá las notas", "borra las notas")):
