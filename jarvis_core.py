@@ -637,7 +637,7 @@ def get_reply(user_input):
         reply = LLM_CHAT(conversation)
     except Exception as e:
         conversation.pop()  # no dejar el mensaje del usuario colgado sin respuesta
-        return LLM_ERROR_MESSAGE
+        return getattr(e, "user_message", LLM_ERROR_MESSAGE)  # el modelo puede traer su propio mensaje claro
 
     conversation.append({"role": "assistant", "content": reply})
     trim_conversation()
