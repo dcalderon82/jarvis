@@ -587,6 +587,28 @@ handsfree_stop = threading.Event()
 handsfree_stop.set()  # apagado al iniciar
 handsfree_thread = None
 
+def wait_for_command(source):
+    """Después de decir solo 'Jarvis': contesta '¿Sí?' y espera el pedido.
+    Si repite 'Jarvis' sin pedido, sigue esperando (hasta 3 intentos)."""
+    add_message("Jarvis", "¿Sí?")
+    speak("¿Sí?")
+    flush_mic(source)
+    for _ in range(3):
+        try:
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+        except sr.WaitTimeoutError:
+            return None
+        heard = transcribe(audio)
+        if not heard:
+            add_message("Sistema", "No te entendí nada, boludo. Probá de nuevo.")
+            return None
+        after_wake = extract_wake_command(heard)
+        command = heard if after_wake is None else after_wake
+        if command:
+            return command
+        # Solo repitió "Jarvis": seguimos esperando el pedido.
+    return None
+
 def handsfree_loop():
     try:
         with sr.Microphone(device_index=mic_device_index, sample_rate=mic_sample_rate, chunk_size=1024) as source:
@@ -605,19 +627,8 @@ def handsfree_loop():
 
                 if not command:
                     # Dijo solo "Jarvis": responde y espera el pedido.
-                    speak("¿Sí?")
-                    flush_mic(source)
-                    try:
-                        audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
-                    except sr.WaitTimeoutError:
-                        continue
-                    command = transcribe(audio)
-                    if command:
-                        again = extract_wake_command(command)
-                        if again is not None:
-                            command = again
+                    command = wait_for_command(source)
                     if not command:
-                        add_message("Sistema", "No te entendí nada, boludo. Probá de nuevo.")
                         continue
 
                 process_and_reply(command)
