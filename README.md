@@ -132,6 +132,37 @@ El botón **👂 Manos libres** arranca apagado. Al activarlo, Jarvis escucha de
 
 ---
 
+## 🌐 Versión web (para usar desde el celular)
+
+`jarvis_web.py` sirve el mismo cerebro (`jarvis_core.py`) con una página de chat pensada para el celular: se puede escribir o hablar, y Jarvis contesta por escrito y en voz alta. Se instala aparte, sin nada de escritorio:
+
+```bash
+pip install -r requirements-web.txt
+```
+
+Para probarla en tu PC (en PowerShell):
+
+```powershell
+$env:JARVIS_PASSWORD = "una-clave-larga-y-unica"   # obligatoria, mínimo 10 caracteres
+$env:JARVIS_COOKIE_SECURE = "0"                     # solo para probar en http://localhost
+python jarvis_web.py                                # http://127.0.0.1:8000
+```
+
+| Variable | Para qué |
+|---|---|
+| `JARVIS_PASSWORD` | Contraseña de entrada (obligatoria) |
+| `JARVIS_SECRET` | Clave para firmar la sesión (recomendada; si falta se genera una al arrancar) |
+| `JARVIS_COOKIE_SECURE` | `1` (por defecto) exige HTTPS; `0` solo para probar en localhost |
+| `JARVIS_TRUST_PROXY` | `1` si está detrás del proxy de un hosting |
+| `JARVIS_TZ` | Zona horaria (por defecto `America/Argentina/Buenos_Aires`) |
+| `JARVIS_DAILY_LIMIT` | Tope de mensajes por día (por defecto 300) |
+
+**Seguridad:** entra solo con contraseña; 5 intentos fallidos bloquean esa IP por 15 minutos; la sesión es una cookie `HttpOnly`; los pedidos exigen JSON, una cabecera propia y el mismo origen; hay topes de 20 mensajes por minuto y 300 por día; y solo se sirven los 4 archivos de la página (nunca tus notas, tu memoria ni tu perfil).
+
+**Qué cambia respecto del escritorio:** los comandos de la PC (volumen, música, carpetas, bloqueo, capturas, info del sistema) no existen en la web. Las búsquedas y los mapas devuelven un link para tocar. Los recordatorios avisan en la página mientras esté abierta y el servidor, encendido. La voz usa el reconocimiento de tu navegador (en iPhone funciona en Safari; si falla, probá el dictado del teclado).
+
+---
+
 ## 🐞 Problemas resueltos
 
 Armarlo dejó a la vista varias rarezas del audio en Windows que vale la pena documentar:
@@ -152,6 +183,9 @@ Se incluyen scripts de prueba (`test_wasapi.py`, `test_all_devices.py`, `test_mi
 jarvis/
 ├── jarvis_core.py           # el "cerebro": perfil, memoria, notas, recordatorios y comandos (sin ventana ni micrófono)
 ├── jarvis_gui.py            # app de escritorio: ventana, micrófono, voz y comandos de la PC
+├── jarvis_web.py            # servidor web para usar Jarvis desde el celular
+├── web/                     # la página de chat (index.html, app.js, style.css)
+├── requirements-web.txt     # dependencias de la versión web
 ├── perfil.ejemplo.json      # plantilla del perfil (copiala a perfil.json)
 ├── perfil.json              # tus datos (no se sube a git)
 ├── notas.json               # tus notas (se crea solo, no se sube a git)
