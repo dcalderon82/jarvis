@@ -1,0 +1,27 @@
+# Lo que NO debe entrar nunca en la imagen (además de la lista blanca del Dockerfile).
+.git
+.gitignore
+.gitattributes
+.claude
+venv
+__pycache__
+*.pyc
+
+# Datos personales y claves
+perfil.json
+memoria.json*
+notas.json*
+recordatorios.json*
+.env
+.env.*
+*.pem
+*.key
+
+# Cosas de escritorio, pruebas y documentación
+jarvis_gui.py
+probar_claude.py
+generar_claves.py
+test_*.py
+screenshots
+*.md
+LICENSE

@@ -162,6 +162,10 @@ python jarvis_web.py                                # http://127.0.0.1:8000
 | `JARVIS_CLAUDE_EFFORT` | Cuánto razona antes de contestar: `low` (por defecto, es un chat), `medium` o `high` |
 | `JARVIS_CLAUDE_MAX_TOKENS` | Tope de tokens por respuesta (por defecto 3000) |
 | `JARVIS_CLAUDE_FALLBACKS` | `1` (por defecto) activa el respaldo automático si un modelo se niega a responder; `0` lo apaga |
+| `JARVIS_DATA_DIR` | Carpeta donde se guardan notas, memoria y recordatorios (por defecto, la del programa). En un servidor, un disco persistente |
+| `JARVIS_PROFILE` | Tu perfil como JSON de una línea. En un hosting reemplaza a `perfil.json`, que no está en el repositorio; lo imprime `generar_claves.py` |
+
+**Ponerlo online:** hay un `Dockerfile` y un `render.yaml` listos, y una guía paso a paso para hacerlo por primera vez en [DESPLIEGUE.md](DESPLIEGUE.md).
 
 ### 🧠 El cerebro online: la API de Claude
 
@@ -209,6 +213,11 @@ jarvis/
 ├── jarvis_web.py            # servidor web para usar Jarvis desde el celular
 ├── jarvis_claude.py         # conecta el cerebro con la API de Claude (versión online)
 ├── probar_claude.py         # prueba tu clave de la API con un pedido chiquito
+├── generar_claves.py        # genera una contraseña y arma tu perfil para el hosting
+├── wsgi.py                  # punto de entrada del servidor de producción
+├── Dockerfile               # el contenedor (con entrypoint.sh y .dockerignore)
+├── render.yaml              # configuración de Render
+├── DESPLIEGUE.md            # guía para ponerlo online
 ├── web/                     # la página de chat (index.html, app.js, style.css)
 ├── requirements-web.txt     # dependencias de la versión web
 ├── perfil.ejemplo.json      # plantilla del perfil (copiala a perfil.json)
