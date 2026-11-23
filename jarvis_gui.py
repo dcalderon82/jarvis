@@ -108,6 +108,15 @@ def speak(text):
 # -----------------------------
 # SPEECH RECOGNITION
 # -----------------------------
+def transcribe(audio):
+    try:
+        text = recognizer.recognize_google(audio, language=SPEECH_LANGUAGE)
+        return text.lower()
+    except sr.UnknownValueError:
+        return None
+    except sr.RequestError:
+        return None
+
 def listen():
     with sr.Microphone(device_index=mic_device_index, sample_rate=mic_sample_rate, chunk_size=1024) as source:
         recognizer.adjust_for_ambient_noise(source, duration=1)
@@ -116,13 +125,27 @@ def listen():
         except sr.WaitTimeoutError:
             return None
 
+    return transcribe(audio)
+
+# Palabra clave del modo manos libres. Google a veces escribe "yarvis", "jarbis", etc.
+WAKE_RE = re.compile(r"\b(?:j|y|ll|ch|d|g|h)[aá]r[vb][ií]s\b")
+
+def extract_wake_command(text):
+    """None si no se dijo la palabra clave; si se dijo, lo que vino después (puede ser vacío)."""
+    match = WAKE_RE.search(text)
+    if not match:
+        return None
+    return text[match.end():].strip(" ,.;:¡!¿?")
+
+def flush_mic(source):
+    """Descarta lo que el micrófono grabó mientras Jarvis hablaba (evita que se escuche a sí mismo)."""
     try:
-        text = recognizer.recognize_google(audio, language=SPEECH_LANGUAGE)
-        return text.lower()
-    except sr.UnknownValueError:
-        return None
-    except sr.RequestError:
-        return None
+        stream = source.stream.pyaudio_stream
+        available = stream.get_read_available()
+        if available:
+            stream.read(available, exception_on_overflow=False)
+    except Exception:
+        pass
 
 # -----------------------------
 # SKILL: WEATHER (Open-Meteo, free, no API key)
@@ -557,6 +580,70 @@ def on_mic():
 
     threading.Thread(target=listen_and_process, daemon=True).start()
 
+# -----------------------------
+# MANOS LIBRES: escucha siempre y se activa al decir "Jarvis" (opcional, arranca apagado)
+# -----------------------------
+handsfree_stop = threading.Event()
+handsfree_stop.set()  # apagado al iniciar
+handsfree_thread = None
+
+def handsfree_loop():
+    try:
+        with sr.Microphone(device_index=mic_device_index, sample_rate=mic_sample_rate, chunk_size=1024) as source:
+            recognizer.adjust_for_ambient_noise(source, duration=1)
+            add_message("Sistema", "Manos libres activado. Decí 'Jarvis' y después tu pedido.")
+            while not handsfree_stop.is_set():
+                try:
+                    audio = recognizer.listen(source, timeout=1, phrase_time_limit=8)
+                except sr.WaitTimeoutError:
+                    continue
+
+                text = transcribe(audio)
+                command = extract_wake_command(text) if text else None
+                if command is None:
+                    continue  # no dijo "Jarvis": se ignora
+
+                if not command:
+                    # Dijo solo "Jarvis": responde y espera el pedido.
+                    speak("¿Sí?")
+                    flush_mic(source)
+                    try:
+                        audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+                    except sr.WaitTimeoutError:
+                        continue
+                    command = transcribe(audio)
+                    if command:
+                        again = extract_wake_command(command)
+                        if again is not None:
+                            command = again
+                    if not command:
+                        add_message("Sistema", "No te entendí nada, boludo. Probá de nuevo.")
+                        continue
+
+                process_and_reply(command)
+                flush_mic(source)
+    except Exception as e:
+        add_message("Sistema", f"El manos libres se detuvo: {e}")
+    finally:
+        handsfree_stop.set()
+        app.after(0, reset_handsfree_ui)
+
+def reset_handsfree_ui():
+    handsfree_button.configure(text="👂 Manos libres", fg_color=HANDSFREE_OFF_COLOR)
+    mic_button.configure(state="normal")
+    add_message("Sistema", "Manos libres apagado.")
+
+def on_handsfree():
+    global handsfree_thread
+    if handsfree_thread is not None and handsfree_thread.is_alive():
+        handsfree_stop.set()  # se apaga solo en un segundo o dos
+        return
+    handsfree_stop.clear()
+    handsfree_button.configure(text="👂 Escuchando: ON", fg_color="#2e7d32")
+    mic_button.configure(state="disabled")  # el micrófono lo usa el manos libres
+    handsfree_thread = threading.Thread(target=handsfree_loop, daemon=True)
+    handsfree_thread.start()
+
 bottom_frame = ctk.CTkFrame(app, fg_color="transparent")
 bottom_frame.pack(padx=20, pady=(0, 20), fill="x")
 
@@ -568,7 +655,11 @@ send_button = ctk.CTkButton(bottom_frame, text="Enviar", width=70, command=on_se
 send_button.pack(side="left", padx=(0, 10))
 
 mic_button = ctk.CTkButton(bottom_frame, text="🎤 Hablar", width=90, command=on_mic)
-mic_button.pack(side="left")
+mic_button.pack(side="left", padx=(0, 10))
+
+handsfree_button = ctk.CTkButton(bottom_frame, text="👂 Manos libres", width=140, command=on_handsfree)
+handsfree_button.pack(side="left")
+HANDSFREE_OFF_COLOR = handsfree_button.cget("fg_color")
 
 GREETING = f"Ey {NICKNAME}, acá estoy. ¿Qué hacemos hoy?"
 add_message("Jarvis", GREETING)
