@@ -55,7 +55,7 @@ p.terminate()
 # -----------------------------
 # SETTINGS
 # -----------------------------
-MODEL = "llama3.2"
+MODEL = PROFILE.get("modelo", "llama3.2")  # modelo de Ollama (se cambia en perfil.json)
 SPEECH_LANGUAGE = "es-AR"  # idioma del micrófono (ej: "es-AR", "es-ES", "en-US")
 # Voces de Windows preferidas para hablar, en orden (se busca en el id de la voz).
 TTS_VOICE_PREFERENCE = ["ES-MX", "ES-ES"]
