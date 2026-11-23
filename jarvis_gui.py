@@ -602,8 +602,8 @@ def wait_for_command(source):
         heard = transcribe(audio)
         if not heard:
             if attempt < 2:
-                add_message("Jarvis", "No te entendí, repetilo.")
-                speak("No te entendí, repetilo.")
+                add_message("Jarvis", "No te entendí, boludo. Repetilo.")
+                speak("No te entendí, boludo. Repetilo.")
                 flush_mic(source)
                 continue
             add_message("Sistema", "No te entendí nada, boludo. Probá de nuevo.")
