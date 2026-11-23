@@ -40,6 +40,7 @@ p.terminate()
 # SETTINGS
 # -----------------------------
 MODEL = "llama3.2"
+SPEECH_LANGUAGE = "es-AR"  # idioma del micrófono (ej: "es-AR", "es-ES", "en-US")
 
 recognizer = sr.Recognizer()
 recognizer.pause_threshold = 1
@@ -79,7 +80,7 @@ def listen():
             return None
 
     try:
-        text = recognizer.recognize_google(audio)
+        text = recognizer.recognize_google(audio, language=SPEECH_LANGUAGE)
         return text.lower()
     except sr.UnknownValueError:
         return None
