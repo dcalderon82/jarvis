@@ -41,6 +41,12 @@ p.terminate()
 # -----------------------------
 MODEL = "llama3.2"
 SPEECH_LANGUAGE = "es-AR"  # idioma del micrófono (ej: "es-AR", "es-ES", "en-US")
+# Voces de Windows preferidas para hablar, en orden (se busca en el id de la voz).
+TTS_VOICE_PREFERENCE = ["ES-MX", "ES-ES"]
+
+DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+         "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 recognizer = sr.Recognizer()
 recognizer.pause_threshold = 1
@@ -50,10 +56,10 @@ conversation = [
     {
         "role": "system",
         "content": (
-            f"You are Jarvis, an intelligent AI assistant. "
-            f"You were built and are maintained by {DEVELOPER_NAME}, who is your developer and creator. "
-            f"Always treat {DEVELOPER_NAME} with respect as your developer. "
-            f"Be helpful, concise, friendly, and conversational."
+            f"Sos Jarvis, un asistente de inteligencia artificial. "
+            f"Fuiste creado y sos mantenido por {DEVELOPER_NAME}, que es tu desarrollador. "
+            f"Tratá siempre a {DEVELOPER_NAME} con respeto como tu desarrollador. "
+            f"Respondé siempre en español, de forma útil, concisa, amable y conversacional."
         ),
     }
 ]
@@ -63,6 +69,12 @@ conversation = [
 # -----------------------------
 def speak(text):
     engine = pyttsx3.init()
+    voices = engine.getProperty("voices")
+    for preferred in TTS_VOICE_PREFERENCE:
+        match = next((v for v in voices if preferred in v.id.upper()), None)
+        if match:
+            engine.setProperty("voice", match.id)
+            break
     engine.setProperty("rate", 175)
     engine.say(text)
     engine.runAndWait()
@@ -92,11 +104,11 @@ def listen():
 # -----------------------------
 def get_weather(city):
     try:
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=es"
         geo_resp = requests.get(geo_url, timeout=10).json()
 
         if "results" not in geo_resp:
-            return f"Sorry, I couldn't find a place called {city}."
+            return f"Perdón, no encontré ningún lugar llamado {city}."
 
         lat = geo_resp["results"][0]["latitude"]
         lon = geo_resp["results"][0]["longitude"]
@@ -109,17 +121,17 @@ def get_weather(city):
         temp = current["temperature"]
         wind = current["windspeed"]
 
-        return f"The current weather in {place_name} is {temp} degrees Celsius, with wind speed of {wind} kilometers per hour."
+        return f"El clima actual en {place_name} es de {temp} grados Celsius, con viento de {wind} kilómetros por hora."
 
     except Exception as e:
-        return f"Sorry, I couldn't fetch the weather. Error: {e}"
+        return f"Perdón, no pude obtener el clima. Error: {e}"
 
 # -----------------------------
-# SKILL: NEWS HEADLINES (BBC RSS, free, no API key)
+# SKILL: NEWS HEADLINES (BBC Mundo RSS, free, no API key)
 # -----------------------------
 def get_news():
     try:
-        url = "http://feeds.bbci.co.uk/news/rss.xml"
+        url = "https://feeds.bbci.co.uk/mundo/rss.xml"
         resp = requests.get(url, timeout=10)
         root = ET.fromstring(resp.content)
 
@@ -129,19 +141,21 @@ def get_news():
             headlines.append(title)
 
         if not headlines:
-            return "I couldn't find any news headlines right now."
+            return "No encontré titulares en este momento."
 
-        return "Here are the top headlines: " + ". ".join(headlines)
+        return "Estos son los titulares principales: " + ". ".join(headlines)
 
     except Exception as e:
-        return f"Sorry, I couldn't fetch the news. Error: {e}"
+        return f"Perdón, no pude obtener las noticias. Error: {e}"
 
 # -----------------------------
 # SKILL: DATE & TIME
 # -----------------------------
 def get_datetime_reply():
     now = datetime.datetime.now()
-    return f"It's currently {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d, %Y')}."
+    dia = DIAS[now.weekday()]
+    mes = MESES[now.month - 1]
+    return f"Son las {now.strftime('%H:%M')} del {dia} {now.day} de {mes} de {now.year}."
 
 # -----------------------------
 # SKILL: GOOGLE MAPS
@@ -149,24 +163,24 @@ def get_datetime_reply():
 def open_maps(place):
     url = f"https://www.google.com/maps/search/{place.replace(' ', '+')}"
     webbrowser.open(url)
-    return f"Opening Google Maps for {place}."
+    return f"Abriendo Google Maps para {place}."
 
 # -----------------------------
 # SKILL: WIKIPEDIA (free public REST API, no key)
 # -----------------------------
 def get_wikipedia_summary(topic):
     try:
-        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{topic.replace(' ', '_')}"
+        url = f"https://es.wikipedia.org/api/rest_v1/page/summary/{topic.replace(' ', '_')}"
         headers = {"User-Agent": "JarvisAssistant/1.0 (personal project; contact@example.com)"}
         resp = requests.get(url, headers=headers, timeout=10)
 
         if resp.status_code != 200:
-            return f"Sorry, I couldn't find anything about {topic} on Wikipedia."
+            return f"Perdón, no encontré nada sobre {topic} en Wikipedia."
 
         data = resp.json()
 
         if "extract" not in data:
-            return f"Sorry, I couldn't find anything about {topic} on Wikipedia."
+            return f"Perdón, no encontré nada sobre {topic} en Wikipedia."
 
         extract = data["extract"]
         sentences = extract.split(". ")
@@ -174,7 +188,7 @@ def get_wikipedia_summary(topic):
         return short_version
 
     except Exception as e:
-        return f"Sorry, I couldn't reach Wikipedia. Error: {e}"
+        return f"Perdón, no pude conectarme a Wikipedia. Error: {e}"
 
 # -----------------------------
 # SKILL: SCREENSHOT (offline, no key)
@@ -189,9 +203,9 @@ def take_screenshot():
         img = pyautogui.screenshot()
         img.save(filepath)
 
-        return f"Screenshot saved to {filepath}."
+        return f"Captura de pantalla guardada en {filepath}."
     except Exception as e:
-        return f"Sorry, I couldn't take a screenshot. Error: {e}"
+        return f"Perdón, no pude tomar la captura de pantalla. Error: {e}"
 
 # -----------------------------
 # SKILL: SYSTEM INFO (offline, no key)
@@ -202,24 +216,24 @@ def get_system_info():
         cpu = psutil.cpu_percent(interval=1)
         ram = psutil.virtual_memory().percent
 
-        parts = [f"CPU usage is {cpu} percent", f"RAM usage is {ram} percent"]
+        parts = [f"El uso de CPU es del {cpu} por ciento", f"El uso de RAM es del {ram} por ciento"]
 
         if battery:
-            plugged = "plugged in" if battery.power_plugged else "on battery"
-            parts.append(f"battery is at {battery.percent} percent, {plugged}")
+            plugged = "conectada al cargador" if battery.power_plugged else "usando batería"
+            parts.append(f"la batería está al {battery.percent} por ciento, {plugged}")
 
         return ". ".join(parts) + "."
     except Exception as e:
-        return f"Sorry, I couldn't get system info. Error: {e}"
+        return f"Perdón, no pude obtener la información del sistema. Error: {e}"
 
 # -----------------------------
 # SKILL: JOKE (fully offline, no key)
 # -----------------------------
 def tell_joke():
     try:
-        return pyjokes.get_joke()
+        return pyjokes.get_joke(language="es")
     except Exception as e:
-        return f"Sorry, I couldn't think of a joke. Error: {e}"
+        return f"Perdón, no se me ocurrió ningún chiste. Error: {e}"
 
 # -----------------------------
 # SKILL: OPEN WEBSITE (offline, no key)
@@ -241,71 +255,78 @@ def open_website(site):
         url = f"https://{site}.com"
 
     webbrowser.open(url)
-    return f"Opening {site}."
+    return f"Abriendo {site}."
 
 # -----------------------------
 # SKILLS ROUTER
 # -----------------------------
+OPEN_WORDS = ("abre", "abrí", "abri", "abrir", "abrime")
+
+def has_any(command, words):
+    return any(w in command for w in words)
+
 def handle_command(command):
-    if "open chrome" in command:
+    opening = has_any(command, OPEN_WORDS)
+
+    if opening and "chrome" in command:
         subprocess.Popen("start chrome", shell=True)
-        return "Opening Chrome."
+        return "Abriendo Chrome."
 
-    elif "open notepad" in command:
+    elif opening and has_any(command, ("bloc de notas", "notepad")):
         subprocess.Popen("notepad")
-        return "Opening Notepad."
+        return "Abriendo el Bloc de notas."
 
-    elif "open vs code" in command or "open visual studio code" in command:
+    elif opening and has_any(command, ("vs code", "vscode", "visual studio code")):
         subprocess.Popen("code", shell=True)
-        return "Opening VS Code."
+        return "Abriendo VS Code."
 
-    elif "weather" in command:
-        if " in " in command:
-            city = command.split(" in ")[-1].strip()
+    elif has_any(command, ("clima", "pronóstico", "pronostico")):
+        if " en " in command:
+            city = command.split(" en ")[-1].strip()
         else:
             city = DEFAULT_CITY
         return get_weather(city)
 
-    elif "news" in command or "headline" in command:
+    elif has_any(command, ("noticias", "titulares")):
         return get_news()
 
-    elif "time" in command or "date" in command:
+    elif has_any(command, ("qué hora", "que hora", "la hora", "hora es", "fecha", "qué día", "que día")):
         return get_datetime_reply()
 
-    elif "map" in command or "directions to" in command or "where is" in command:
-        for trigger in ["show map of", "open maps for", "map of", "directions to", "where is"]:
+    elif has_any(command, ("mapa", "cómo llegar", "como llegar", "dónde queda", "donde queda", "dónde está", "donde está", "donde esta")):
+        for trigger in ["mapa de", "cómo llegar a", "como llegar a", "dónde queda", "donde queda", "dónde está", "donde está", "donde esta"]:
             if trigger in command:
                 place = command.split(trigger)[-1].strip()
                 return open_maps(place)
-        return open_maps(command.replace("map", "").strip())
+        return open_maps(command.replace("mapa", "").strip())
 
-    elif "who am i" in command or "about me" in command or "who is my developer" in command:
+    elif has_any(command, ("quién soy", "quien soy", "sobre mí", "sobre mi", "quién es mi desarrollador", "quien es mi desarrollador", "quién es mi creador", "quien es mi creador")):
         return (
-            f"You are {DEVELOPER_NAME}, my creator and developer. "
-            f"You built me from scratch, debugged my microphone drivers, "
-            f"and taught me to listen, speak, and help you with real tasks. "
-            f"I exist because of your work."
+            f"Vos sos {DEVELOPER_NAME}, mi creador y desarrollador. "
+            f"Me construiste desde cero, arreglaste los drivers de mi micrófono, "
+            f"y me enseñaste a escuchar, hablar y ayudarte con tareas reales. "
+            f"Existo gracias a tu trabajo."
         )
 
-    elif "wikipedia" in command or command.startswith("who is") or command.startswith("what is"):
-        for trigger in ["wikipedia", "who is", "what is"]:
+    elif "wikipedia" in command or has_any(command, ("quién es", "quien es", "quién fue", "quien fue", "qué es", "que es")):
+        for trigger in ["wikipedia", "quién es", "quien es", "quién fue", "quien fue", "qué es", "que es"]:
             if trigger in command:
                 topic = command.split(trigger)[-1].strip()
                 if topic:
                     return get_wikipedia_summary(topic)
         return None
 
-    elif "screenshot" in command:
+    elif has_any(command, ("captura de pantalla", "pantallazo", "screenshot")):
         return take_screenshot()
 
-    elif "system info" in command or "battery" in command or "cpu" in command or "ram" in command:
+    elif has_any(command, ("información del sistema", "informacion del sistema", "info del sistema", "batería", "bateria", "cpu", "memoria ram", "uso de ram")):
         return get_system_info()
 
-    elif "joke" in command:
+    elif has_any(command, ("chiste", "chistes")):
         return tell_joke()
 
-    elif "open" in command and ("website" in command or "youtube" in command or "github" in command or "reddit" in command or "gmail" in command):
-        for trigger in ["open website", "open"]:
+    elif opening and has_any(command, ("sitio web", "página web", "pagina web", "youtube", "github", "reddit", "gmail")):
+        for trigger in ["el sitio web", "sitio web", "la página web", "la pagina web", "abrime", "abrí", "abri", "abrir", "abre"]:
             if trigger in command:
                 site = command.split(trigger)[-1].strip()
                 if site:
@@ -328,7 +349,7 @@ def get_reply(user_input):
         response = ollama.chat(model=MODEL, messages=conversation)
         reply = response["message"]["content"]
     except Exception as e:
-        return "Sorry, I cannot connect to Ollama. Make sure it's running."
+        return "Perdón, no puedo conectarme a Ollama. Asegurate de que esté corriendo."
 
     conversation.append({"role": "assistant", "content": reply})
     return reply
@@ -368,10 +389,10 @@ def on_send():
 
 def on_mic():
     def listen_and_process():
-        add_message("System", "Listening...")
+        add_message("Sistema", "Escuchando...")
         heard = listen()
         if heard is None:
-            add_message("System", "Didn't catch that.")
+            add_message("Sistema", "No te escuché bien.")
             return
         process_and_reply(heard)
 
@@ -380,17 +401,17 @@ def on_mic():
 bottom_frame = ctk.CTkFrame(app, fg_color="transparent")
 bottom_frame.pack(padx=20, pady=(0, 20), fill="x")
 
-entry = ctk.CTkEntry(bottom_frame, placeholder_text="Type a message...", font=("Segoe UI", 14))
+entry = ctk.CTkEntry(bottom_frame, placeholder_text="Escribí un mensaje...", font=("Segoe UI", 14))
 entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
 entry.bind("<Return>", lambda event: on_send())
 
-send_button = ctk.CTkButton(bottom_frame, text="Send", width=70, command=on_send)
+send_button = ctk.CTkButton(bottom_frame, text="Enviar", width=70, command=on_send)
 send_button.pack(side="left", padx=(0, 10))
 
-mic_button = ctk.CTkButton(bottom_frame, text="🎤 Talk", width=90, command=on_mic)
+mic_button = ctk.CTkButton(bottom_frame, text="🎤 Hablar", width=90, command=on_mic)
 mic_button.pack(side="left")
 
-add_message("Jarvis", f"Online. Hello {DEVELOPER_NAME}, how can I help you?")
-threading.Thread(target=speak, args=(f"Jarvis online. Hello {DEVELOPER_NAME}, how can I help you?",), daemon=True).start()
+add_message("Jarvis", f"En línea. Hola {DEVELOPER_NAME}, ¿en qué puedo ayudarte?")
+threading.Thread(target=speak, args=(f"Jarvis en línea. Hola {DEVELOPER_NAME}, ¿en qué puedo ayudarte?",), daemon=True).start()
 
 app.mainloop()
