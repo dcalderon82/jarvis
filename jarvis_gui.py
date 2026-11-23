@@ -14,6 +14,7 @@ import psutil
 import pyjokes
 import os
 import json
+import re
 
 # -----------------------------
 # PERFIL (se lee de perfil.json; copiá perfil.ejemplo.json y completalo)
@@ -282,6 +283,119 @@ def open_website(site):
     return f"Abriendo {site}."
 
 # -----------------------------
+# SKILL: NOTAS (se guardan en notas.json, que no se sube a git)
+# -----------------------------
+NOTES_FILE = os.path.join(BASE_DIR, "notas.json")
+NOTE_RE = re.compile(r"\b(?:anot[aá]me|anot[aá]|agreg[aá] una nota|tom[aá] nota)\b(?: de| que)?\s+(.+)$")
+
+def load_notes():
+    try:
+        with open(NOTES_FILE, encoding="utf-8") as f:
+            notes = json.load(f)
+        if isinstance(notes, list):
+            return notes
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError):
+        pass
+    # El archivo existe pero está roto: lo aparto para no pisarlo.
+    try:
+        os.replace(NOTES_FILE, NOTES_FILE + ".corrupto")
+    except OSError:
+        pass
+    return []
+
+def save_notes(notes):
+    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+
+def add_note(text):
+    try:
+        notes = load_notes()
+        notes.append({"texto": text, "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")})
+        save_notes(notes)
+        return f"Listo, anotado: {text}."
+    except Exception as e:
+        return f"Perdón, no pude guardar la nota. Error: {e}"
+
+def list_notes():
+    notes = load_notes()
+    if not notes:
+        return "No tenés nada anotado, che."
+    items = [f"número {i}: {n.get('texto', '')}" for i, n in enumerate(notes, 1)]
+    palabra = "nota" if len(notes) == 1 else "notas"
+    return f"Tenés {len(notes)} {palabra}. " + ". ".join(items) + "."
+
+def delete_last_note():
+    try:
+        notes = load_notes()
+        if not notes:
+            return "No hay ninguna nota para borrar."
+        borrada = notes.pop()
+        save_notes(notes)
+        return f"Borré la última nota: {borrada.get('texto', '')}."
+    except Exception as e:
+        return f"Perdón, no pude borrar la nota. Error: {e}"
+
+def clear_notes():
+    try:
+        cantidad = len(load_notes())
+        save_notes([])
+        return f"Listo, borré todas las notas ({cantidad})."
+    except Exception as e:
+        return f"Perdón, no pude borrar las notas. Error: {e}"
+
+# -----------------------------
+# SKILL: RECORDATORIOS (viven mientras Jarvis esté abierto)
+# -----------------------------
+NUMBER_WORDS = {
+    "un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6,
+    "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "quince": 15, "veinte": 20,
+    "treinta": 30, "media": 0.5, "medio": 0.5,
+}
+UNIT_SECONDS = {"segundo": 1, "minuto": 60, "hora": 3600}
+TIME_RE = re.compile(r"\ben (\d+|" + "|".join(NUMBER_WORDS) + r") (segundos?|minutos?|horas?)\b")
+REMIND_RE = re.compile(r"\b(?:record[aá]me|acord[aá]me|avis[aá]me)\b")
+REMINDERS = []
+
+def fire_reminder(entry):
+    if entry in REMINDERS:
+        REMINDERS.remove(entry)
+    msg = f"Ey {NICKNAME}, te acuerdo: {entry['texto']}."
+    add_message("Jarvis", msg)
+    speak(msg)
+
+def set_reminder(command):
+    trigger = REMIND_RE.search(command)
+    when = TIME_RE.search(command, trigger.end()) or TIME_RE.search(command)
+    if not when:
+        return "Decime en cuánto tiempo, por ejemplo: recordame en 10 minutos llamar a mamá."
+
+    amount = when.group(1)
+    amount = int(amount) if amount.isdigit() else NUMBER_WORDS[amount]
+    seconds = amount * UNIT_SECONDS[when.group(2).rstrip("s")]
+
+    rest = command[trigger.end():]
+    rest = TIME_RE.sub("", rest, count=1)
+    text = re.sub(r"^\s*(?:de|que|para)\s+", "", rest.strip()).strip() or "lo que me pediste"
+
+    due = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
+    entry = {"texto": text, "hora": due.strftime("%H:%M")}
+    timer = threading.Timer(seconds, fire_reminder, args=(entry,))
+    timer.daemon = True
+    entry["timer"] = timer
+    REMINDERS.append(entry)
+    timer.start()
+    return f"Dale, en {when.group(1)} {when.group(2)} te acuerdo: {text}."
+
+def list_reminders():
+    if not REMINDERS:
+        return "No tenés recordatorios pendientes."
+    items = [f"a las {r['hora']}: {r['texto']}" for r in REMINDERS]
+    palabra = "recordatorio" if len(REMINDERS) == 1 else "recordatorios"
+    return f"Tenés {len(REMINDERS)} {palabra} pendientes. " + ". ".join(items) + "."
+
+# -----------------------------
 # SKILLS ROUTER
 # -----------------------------
 OPEN_WORDS = ("abre", "abrí", "abri", "abrir", "abrime")
@@ -303,6 +417,24 @@ def handle_command(command):
     elif opening and has_any(command, ("vs code", "vscode", "visual studio code")):
         subprocess.Popen("code", shell=True)
         return "Abriendo VS Code."
+
+    elif REMIND_RE.search(command):
+        return set_reminder(command)
+
+    elif has_any(command, ("qué recordatorios", "que recordatorios", "mis recordatorios")):
+        return list_reminders()
+
+    elif has_any(command, ("borrá todas las notas", "borra todas las notas", "borrar todas las notas", "borrá las notas", "borra las notas")):
+        return clear_notes()
+
+    elif has_any(command, ("borrá la última nota", "borra la última nota", "borrá la ultima nota", "borra la ultima nota")):
+        return delete_last_note()
+
+    elif has_any(command, ("qué tengo anotado", "que tengo anotado", "mis notas", "las notas", "qué anoté", "que anote")):
+        return list_notes()
+
+    elif NOTE_RE.search(command):
+        return add_note(NOTE_RE.search(command).group(1).strip())
 
     elif has_any(command, ("clima", "pronóstico", "pronostico")):
         if " en " in command:
