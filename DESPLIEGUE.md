@@ -62,8 +62,19 @@ Las demás variables (`JARVIS_SECRET`, `JARVIS_COOKIE_SECURE`, `JARVIS_DAILY_LIM
 
 1. Cuando el despliegue termine, Render te da una dirección tipo `https://jarvis-xxxx.onrender.com`. Probá primero `…/api/health` en cualquier navegador: debe mostrar `{"ok":true}`.
 2. Abrí la dirección en el celular, entrá con tu contraseña y escribile algo.
-3. **iPhone:** abrilo en **Safari** (el reconocimiento de voz de la página anda ahí). La primera vez que toques 🎤, Safari te pide permiso para el micrófono. Si el micrófono falla, probá el **dictado del teclado** (el micrófono del teclado del iPhone), que es más confiable. Para dictar tiene que estar activado en *Ajustes → General → Teclado → Activar dictado*.
-4. Opcional: *Compartir → Agregar a pantalla de inicio* para tener un ícono.
+3. **iPhone:** abrilo en **Safari**. Está probado: el 🎤 de la página reconoce la voz en español y Jarvis contesta en voz alta. La primera vez que toques 🎤, Safari te pide permiso para el micrófono. Si el micrófono falla, probá el **dictado del teclado** (el micrófono del teclado del iPhone), que es más confiable. Para dictar tiene que estar activado en *Ajustes → General → Teclado → Activar dictado*.
+4. **Para que Jarvis hable**, fijate en el altavoz de la esquina de arriba: si aparece tachado (🔇), la voz está apagada. Tocalo para activarla (🔊); el navegador se acuerda de tu elección.
+5. Opcional: *Compartir → Agregar a pantalla de inicio* para tener un ícono.
+
+### Qué se verificó con una prueba real
+
+Para que sepas qué está comprobado y qué no:
+
+- **Desde afuera, sin iniciar sesión:** el servicio responde sano; usa HTTPS con HSTS y la política de seguridad de contenido; `http://` redirige a `https://`; el chat sin sesión da 401 y un pedido sin la cabecera propia da 403; y el código, el `Dockerfile`, el perfil y la memoria dan 404.
+- **En un iPhone con Safari:** el chat contesta con Claude, en voseo y hablándote a vos; el 🎤 de la página reconoce la voz; y Jarvis contesta en voz alta.
+- **En un contenedor local, antes de desplegar:** corre sin permisos de administrador, usa la hora de Argentina, guarda sus datos en `/data` y los conserva al reiniciar, se niega a arrancar si falta la contraseña o la clave, y no deja claves ni mensajes en los registros.
+
+Lo que **no** está probado: el plan de pago con disco persistente, ni otros navegadores o celulares (Android, Chrome en iPhone).
 
 ---
 
@@ -110,6 +121,11 @@ Lo que Jarvis ya hace por vos: entra solo con contraseña; 5 intentos fallidos s
 | "Por hoy ya fue, llegamos al tope de mensajes" | Se usó el tope diario | Mañana sigue, o subí `JARVIS_DAILY_LIMIT` |
 | Se perdieron las notas | Plan gratis o sin disco | Pasá a un plan de pago con disco en `/data` |
 | "Demasiados intentos" al entrar | 5 contraseñas malas seguidas | Esperá 15 minutos |
+| En la PC, al tocar 🎤, el navegador muestra "Downloading speech recognition model" (cientos de MB) | El navegador de la PC quiere bajar su propio modelo de reconocimiento de voz | No hace falta: tocá **Cancel** y hablale desde el celular, o escribí |
+| El altavoz aparece tachado (🔇) y Jarvis no habla | La voz de Jarvis está apagada | Tocá el altavoz para activarla (🔊) |
+| Jarvis contesta, pero con el 🔊 prendido no se oye nada | Volumen bajo o modo silencio del teléfono | Subí el volumen y revisá el modo silencio |
+| El 🎤 dice "No tengo permiso para usar el micrófono" | El navegador no te dejó usarlo | Habilitá el micrófono para el sitio en los ajustes del navegador |
+| El 🎤 dice "El dictado está desactivado" (iPhone) | El dictado del teclado está apagado | *Ajustes → General → Teclado → Activar dictado* |
 
 Los registros (logs) del servicio están en el panel de Render. Ahí se ve el modelo, la cantidad de tokens y los errores, pero **nunca** tus mensajes ni tu clave.
 
